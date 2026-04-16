@@ -1,4 +1,4 @@
-# IoTParkers Node Backend (Clean Architecture)
+# Logic Nodes Backend (Clean Architecture)
 
 Migracion base de Java Spring Boot a Node.js manteniendo los mismos endpoints REST y preparada para PostgreSQL.
 
@@ -94,7 +94,7 @@ npm install
 3. Crea base de datos y aplica schema:
 
 ```bash
-psql -U postgres -d iotparkers -f db/schema.sql
+psql -U postgres -d logicnodes -f db/schema.sql
 ```
 
 4. Levanta API:

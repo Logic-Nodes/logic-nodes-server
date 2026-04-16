@@ -1,5 +1,5 @@
--- IoTParkers PostgreSQL schema generated from Java domain model
--- Run: psql -U postgres -d iotparkers -f db/schema.sql
+-- LogicNodesBD PostgreSQL schema generated from Java domain model
+-- Run: psql -U postgres -d logicnodes -f db/schema.sql
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

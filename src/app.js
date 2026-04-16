@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 import api from "./shared/interfaces/http/router.js";
+import swaggerRoutes from "./shared/interfaces/http/swagger.routes.js";
 import { errorHandler } from "./shared/interfaces/http/error-handler.js";
 
 export const buildApp = () => {
@@ -14,6 +15,7 @@ export const buildApp = () => {
   app.use(express.json({ limit: "2mb" }));
   app.use(morgan("dev"));
 
+  app.use(swaggerRoutes);
   app.use(api);
   app.use(errorHandler);
 
