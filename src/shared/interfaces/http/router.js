@@ -3,6 +3,7 @@ import { Router } from "express";
 import alertsRoutes from "../../../contexts/alerts/interfaces/http/alerts.routes.js";
 import incidentsRoutes from "../../../contexts/alerts/interfaces/http/incidents.routes.js";
 import notificationsRoutes from "../../../contexts/alerts/interfaces/http/notifications.routes.js";
+import billingRoutes from "../../../contexts/billing/interfaces/http/billing.routes.js";
 import analyticsRoutes from "../../../contexts/dashboard/interfaces/http/analytics.routes.js";
 import devicesRoutes from "../../../contexts/fleet/interfaces/http/devices.routes.js";
 import vehiclesRoutes from "../../../contexts/fleet/interfaces/http/vehicles.routes.js";
@@ -27,6 +28,7 @@ api.get("/health", (req, res) => {
 api.use("/api/v1/alerts", alertsRoutes);
 api.use("/api/v1/incidents", incidentsRoutes);
 api.use("/api/v1/notifications", notificationsRoutes);
+api.use("/api/v1/billing", billingRoutes);
 api.use("/api/v1/analytics", analyticsRoutes);
 api.use("/api/v1/fleet/devices", devicesRoutes);
 api.use("/api/v1/fleet/vehicles", vehiclesRoutes);
