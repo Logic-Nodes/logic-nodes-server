@@ -47,7 +47,8 @@ export const openApiSpec = {
     { name: 'Telemetry' },
     { name: 'Merchants' },
     { name: 'Employees' },
-    { name: 'Profiles' }
+    { name: 'Profiles' },
+    { name: 'Billing' }
   ],
   paths: {
     '/health': {
@@ -1226,6 +1227,54 @@ export const openApiSpec = {
           200: jsonResponse('OK', ref('Profile'))
         }
       }
+    },
+    '/api/v1/billing/{userId}/subscription': {
+      get: {
+        tags: ['Billing'],
+        summary: 'Get the subscription for a user (auto-creates a default plan and seeds payment history on first access)',
+        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: jsonResponse('OK', ref('Subscription'))
+        }
+      }
+    },
+    '/api/v1/billing/{userId}/payments': {
+      get: {
+        tags: ['Billing'],
+        summary: 'List the payment history for a user',
+        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: jsonResponse('OK', arrayOf(ref('PaymentRecord')))
+        }
+      }
+    },
+    '/api/v1/billing/{userId}/payment-method': {
+      post: {
+        tags: ['Billing'],
+        summary: 'Link a payment method to the user subscription (stores only the masked card label)',
+        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: ref('LinkPaymentMethodRequest')
+            }
+          }
+        },
+        responses: {
+          200: jsonResponse('OK', ref('Subscription'))
+        }
+      }
+    },
+    '/api/v1/billing/{userId}/cancel': {
+      post: {
+        tags: ['Billing'],
+        summary: 'Cancel the user subscription',
+        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: jsonResponse('OK', ref('Subscription'))
+        }
+      }
     }
   },
   components: {
@@ -1383,6 +1432,41 @@ export const openApiSpec = {
           description: { type: 'string', nullable: true },
           createdAt: { type: 'string', format: 'date-time', nullable: true },
           updatedAt: { type: 'string', format: 'date-time', nullable: true }
+        }
+      },
+      Subscription: {
+        type: 'object',
+        properties: {
+          id: { type: ['string', 'integer'] },
+          userId: { type: ['string', 'integer'] },
+          planName: { type: 'string', example: 'PROFESSIONAL' },
+          amountCents: { type: 'integer', example: 7900 },
+          currency: { type: 'string', example: 'USD' },
+          status: { type: 'string', example: 'ACTIVE' },
+          renewalDate: { type: 'string', example: '07/16/2026' },
+          paymentMethodLabel: { type: 'string', nullable: true, example: 'Card ending in 4242' },
+          createdAt: { type: 'string', format: 'date-time', nullable: true },
+          updatedAt: { type: 'string', format: 'date-time', nullable: true }
+        }
+      },
+      PaymentRecord: {
+        type: 'object',
+        properties: {
+          id: { type: ['string', 'integer'] },
+          userId: { type: ['string', 'integer'] },
+          amountCents: { type: 'integer', example: 7900 },
+          currency: { type: 'string', example: 'USD' },
+          status: { type: 'string', example: 'PAID' },
+          transactionId: { type: 'string', example: 'TXN-1-0001' },
+          date: { type: 'string', example: '06/16/2026' },
+          paidAt: { type: 'string', format: 'date-time', nullable: true }
+        }
+      },
+      LinkPaymentMethodRequest: {
+        type: 'object',
+        properties: {
+          cardNumber: { type: 'string', example: '4242424242424242' },
+          paymentMethodLabel: { type: 'string', nullable: true, description: 'Optional pre-formatted label; if omitted, the masked label is derived from cardNumber' }
         }
       },
       CreateIncidentRequest: {
