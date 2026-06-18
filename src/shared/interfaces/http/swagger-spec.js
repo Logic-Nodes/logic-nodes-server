@@ -1228,7 +1228,16 @@ export const openApiSpec = {
         }
       }
     },
-    '/api/v1/billing/{userId}/subscription': {
+    '/api/v1/plans': {
+      get: {
+        tags: ['Billing'],
+        summary: 'List available subscription plans',
+        responses: {
+          200: jsonResponse('OK', arrayOf(ref('Plan')))
+        }
+      }
+    },
+    '/api/v1/subscription/user-id/{userId}': {
       get: {
         tags: ['Billing'],
         summary: 'Get the subscription for a user (auto-creates a default plan and seeds payment history on first access)',
@@ -1238,26 +1247,16 @@ export const openApiSpec = {
         }
       }
     },
-    '/api/v1/billing/{userId}/payments': {
-      get: {
+    '/api/v1/subscription/{id}/plan': {
+      put: {
         tags: ['Billing'],
-        summary: 'List the payment history for a user',
-        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
-        responses: {
-          200: jsonResponse('OK', arrayOf(ref('PaymentRecord')))
-        }
-      }
-    },
-    '/api/v1/billing/{userId}/payment-method': {
-      post: {
-        tags: ['Billing'],
-        summary: 'Link a payment method to the user subscription (stores only the masked card label)',
-        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        summary: 'Change the plan of a subscription',
+        parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
           content: {
             'application/json': {
-              schema: ref('LinkPaymentMethodRequest')
+              schema: ref('ChangePlanRequest')
             }
           }
         },
@@ -1266,13 +1265,23 @@ export const openApiSpec = {
         }
       }
     },
-    '/api/v1/billing/{userId}/cancel': {
-      post: {
+    '/api/v1/subscription/{id}': {
+      delete: {
         tags: ['Billing'],
-        summary: 'Cancel the user subscription',
-        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        summary: 'Cancel a subscription',
+        parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
         responses: {
           200: jsonResponse('OK', ref('Subscription'))
+        }
+      }
+    },
+    '/api/v1/payments/user-id/{userId}': {
+      get: {
+        tags: ['Billing'],
+        summary: 'List the payment history for a user',
+        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: jsonResponse('OK', arrayOf(ref('Payment')))
         }
       }
     }
@@ -1434,39 +1443,44 @@ export const openApiSpec = {
           updatedAt: { type: 'string', format: 'date-time', nullable: true }
         }
       },
+      Plan: {
+        type: 'object',
+        properties: {
+          id: { type: ['string', 'integer'] },
+          name: { type: 'string', example: 'PROFESSIONAL' },
+          limits: { type: 'string', example: 'Up to 25 vehicles' },
+          price: { type: 'number', example: 79 },
+          description: { type: 'string', example: 'Advanced monitoring, alerts and reports.' }
+        }
+      },
       Subscription: {
         type: 'object',
         properties: {
           id: { type: ['string', 'integer'] },
           userId: { type: ['string', 'integer'] },
-          planName: { type: 'string', example: 'PROFESSIONAL' },
-          amountCents: { type: 'integer', example: 7900 },
-          currency: { type: 'string', example: 'USD' },
-          status: { type: 'string', example: 'ACTIVE' },
-          renewalDate: { type: 'string', example: '07/16/2026' },
-          paymentMethodLabel: { type: 'string', nullable: true, example: 'Card ending in 4242' },
-          createdAt: { type: 'string', format: 'date-time', nullable: true },
-          updatedAt: { type: 'string', format: 'date-time', nullable: true }
+          status: { type: 'string', enum: ['ACTIVE', 'CANCELED', 'PENDING', 'PAST_DUE'], example: 'ACTIVE' },
+          renewal: { type: 'string', example: '2026-07-17' },
+          paymentMethod: { type: 'string', example: '' },
+          plan: ref('Plan')
         }
       },
-      PaymentRecord: {
+      Payment: {
         type: 'object',
         properties: {
           id: { type: ['string', 'integer'] },
           userId: { type: ['string', 'integer'] },
-          amountCents: { type: 'integer', example: 7900 },
-          currency: { type: 'string', example: 'USD' },
-          status: { type: 'string', example: 'PAID' },
+          receiptUrl: { type: 'string', example: 'https://logic-nodes-server.onrender.com/receipts/1' },
           transactionId: { type: 'string', example: 'TXN-1-0001' },
-          date: { type: 'string', example: '06/16/2026' },
-          paidAt: { type: 'string', format: 'date-time', nullable: true }
+          status: { type: 'string', example: 'PAID' },
+          amount: { type: 'number', example: 79 },
+          paymentDate: { type: 'string', example: '2026-06-17' }
         }
       },
-      LinkPaymentMethodRequest: {
+      ChangePlanRequest: {
         type: 'object',
+        required: ['newPlanId'],
         properties: {
-          cardNumber: { type: 'string', example: '4242424242424242' },
-          paymentMethodLabel: { type: 'string', nullable: true, description: 'Optional pre-formatted label; if omitted, the masked label is derived from cardNumber' }
+          newPlanId: { type: 'integer', example: 3 }
         }
       },
       CreateIncidentRequest: {
