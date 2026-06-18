@@ -16,5 +16,11 @@ export const env = {
     secret: process.env.JWT_SECRET || "change-me",
     expiresIn: process.env.JWT_EXPIRES_IN || "1h",
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d"
+  },
+  cors: {
+    origins: (process.env.CORS_ORIGINS || "")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
   }
 };
