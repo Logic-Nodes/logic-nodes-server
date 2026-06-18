@@ -5,6 +5,8 @@ import {
 	logout,
 	logoutAll,
 	refreshTokens,
+	requestPasswordReset,
+	resetPassword,
 	signIn,
 	signUp,
 	verifyAccessToken
@@ -26,6 +28,8 @@ const router = Router();
 router.post("/sign-in", handle(async (req) => ({ statusCode: 200, body: await signIn(req.body || {}) })));
 router.post("/sign-up", handle(async (req) => ({ statusCode: 201, body: await signUp(req.body || {}) })));
 router.post("/verify-token", handle(async (req) => ({ statusCode: 200, body: await verifyAccessToken({ authorization: req.headers.authorization, token: req.body?.token }) })));
+router.post("/forgot-password", handle(async (req) => ({ statusCode: 200, body: await requestPasswordReset(req.body || {}) })));
+router.post("/reset-password", handle(async (req) => ({ statusCode: 200, body: await resetPassword(req.body || {}) })));
 router.post("/refresh", handle(async (req) => ({ statusCode: 200, body: await refreshTokens(req.body || {}) })));
 router.post("/logout", handle(async (req) => ({ statusCode: 204, body: await logout(req.body || {}) })));
 router.post("/logout-all", handle(async (req) => ({ statusCode: 204, body: await logoutAll({ authorization: req.headers.authorization, userId: req.body?.userId }) })));

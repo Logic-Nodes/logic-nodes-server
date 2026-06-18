@@ -12,6 +12,7 @@ import {
   listUsers,
   revokeAllRefreshTokensForUser,
   revokeRefreshToken,
+  updateUserPassword,
   verifyPassword
 } from "../infrastructure/persistence/iam-repository.js";
 
@@ -180,6 +181,61 @@ export const logoutAll = async ({ authorization, userId }) => {
   }
 
   await revokeAllRefreshTokensForUser(resolvedUserId);
+};
+
+export const requestPasswordReset = async ({ email }) => {
+  if (!email) {
+    throw Object.assign(new Error("Email is required"), { status: 400 });
+  }
+
+  const user = await getUserByEmail(email);
+
+  // Always respond the same way so the endpoint does not reveal which emails
+  // exist. When the user is found we mint a short-lived reset token; without
+  // an email provider the token is returned so the mobile flow can continue.
+  if (!user) {
+    return {
+      message: "If the account exists, password reset instructions were issued.",
+      resetToken: null
+    };
+  }
+
+  const resetToken = jwt.sign(
+    { sub: String(user.id), email: user.email, tokenType: "reset" },
+    env.jwt.secret,
+    { expiresIn: "15m" }
+  );
+
+  return {
+    message: "If the account exists, password reset instructions were issued.",
+    resetToken
+  };
+};
+
+export const resetPassword = async ({ resetToken, password }) => {
+  if (!resetToken || !password) {
+    throw Object.assign(new Error("Reset token and password are required"), { status: 400 });
+  }
+
+  if (String(password).length < 8) {
+    throw Object.assign(new Error("Password must be at least 8 characters"), { status: 400 });
+  }
+
+  const decoded = verifyJwt(resetToken, "Invalid or expired reset token");
+  if (decoded.tokenType !== "reset") {
+    throw authError("Invalid reset token");
+  }
+
+  const userId = Number(decoded.sub);
+  const updated = await updateUserPassword(userId, password);
+  if (!updated) {
+    throw authError("User not found");
+  }
+
+  // Invalidate existing sessions after a password change.
+  await revokeAllRefreshTokensForUser(userId);
+
+  return { message: "Password updated successfully" };
 };
 
 export const getIamUsers = async () => listUsers();

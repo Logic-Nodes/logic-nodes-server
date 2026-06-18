@@ -1,0 +1,26 @@
+-- Billing context: subscriptions and payment history.
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  plan_name VARCHAR(100) NOT NULL DEFAULT 'PROFESSIONAL',
+  amount_cents INTEGER NOT NULL DEFAULT 7900,
+  currency VARCHAR(8) NOT NULL DEFAULT 'USD',
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  renewal_date DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '1 month'),
+  payment_method_label VARCHAR(120),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount_cents INTEGER NOT NULL,
+  currency VARCHAR(8) NOT NULL DEFAULT 'USD',
+  status VARCHAR(20) NOT NULL DEFAULT 'PAID',
+  transaction_id VARCHAR(60) NOT NULL,
+  paid_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);

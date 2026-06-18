@@ -139,6 +139,23 @@ export const createUser = async ({ email, password, roles = ["USER"] }) => {
 
 export const verifyPassword = async (plainPassword, hashedPassword) => bcrypt.compare(plainPassword, hashedPassword);
 
+export const updateUserPassword = async (userId, newPassword) => {
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  const rows = await query(
+    `
+      UPDATE users
+      SET password = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, email
+    `,
+    [userId, hashedPassword]
+  );
+
+  return rows[0] || null;
+};
+
 export const createRefreshToken = async ({ userId, jti, expiresAt }) => {
   return query(
     `
