@@ -3,9 +3,10 @@ import { Router } from "express";
 import { sendHttpResponse } from "../../../../shared/interfaces/http/normalize-response.js";
 import {
   cancelSubscription,
-  getOrCreateSubscription,
-  linkPaymentMethod,
-  listPayments
+  changePlan,
+  getSubscriptionByUser,
+  listPaymentsByUser,
+  listPlans
 } from "../../application/billing-service.js";
 
 const router = Router();
@@ -19,9 +20,16 @@ const handle = (action, statusCode = 200) => async (req, res, next) => {
   }
 };
 
-router.get("/:userId/subscription", handle(async (req) => ({ item: await getOrCreateSubscription(req.params.userId) })));
-router.get("/:userId/payments", handle(async (req) => ({ items: await listPayments(req.params.userId) })));
-router.post("/:userId/payment-method", handle(async (req) => ({ item: await linkPaymentMethod(req.params.userId, req.body || {}) })));
-router.post("/:userId/cancel", handle(async (req) => ({ item: await cancelSubscription(req.params.userId) })));
+// Contract (web + mobile), mounted at /api/v1:
+//   GET    /plans
+//   GET    /subscription/user-id/:userId
+//   PUT    /subscription/:id/plan        body: { newPlanId }
+//   DELETE /subscription/:id
+//   GET    /payments/user-id/:userId
+router.get("/plans", handle(async () => ({ items: await listPlans() })));
+router.get("/subscription/user-id/:userId", handle(async (req) => ({ item: await getSubscriptionByUser(req.params.userId) })));
+router.put("/subscription/:id/plan", handle(async (req) => ({ item: await changePlan(req.params.id, req.body || {}) })));
+router.delete("/subscription/:id", handle(async (req) => ({ item: await cancelSubscription(req.params.id) })));
+router.get("/payments/user-id/:userId", handle(async (req) => ({ items: await listPaymentsByUser(req.params.userId) })));
 
 export default router;
