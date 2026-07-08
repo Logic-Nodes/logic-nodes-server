@@ -29,7 +29,7 @@ api.get("/health", (req, res) => {
 api.use("/api/v1/alerts", alertsRoutes);
 api.use("/api/v1/incidents", incidentsRoutes);
 api.use("/api/v1/notifications", notificationsRoutes);
-api.use("/api/v1/billing", billingRoutes);
+api.use("/api/v1", billingRoutes);
 api.use("/api/v1/analytics", analyticsRoutes);
 api.use("/api/v1/fleet/devices", devicesRoutes);
 api.use("/api/v1/fleet/vehicles", vehiclesRoutes);

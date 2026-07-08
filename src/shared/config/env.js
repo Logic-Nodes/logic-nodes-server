@@ -30,6 +30,12 @@ export const env = {
       maxHumidity: numberOrNull(process.env.IOT_MAX_HUMIDITY, 85),
       maxVibration: numberOrNull(process.env.IOT_MAX_VIBRATION, 5)
     }
+  },
+  cors: {
+    origins: (process.env.CORS_ORIGINS || "")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
   }
 };
 

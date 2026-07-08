@@ -48,7 +48,8 @@ export const openApiSpec = {
     { name: 'IoT' },
     { name: 'Merchants' },
     { name: 'Employees' },
-    { name: 'Profiles' }
+    { name: 'Profiles' },
+    { name: 'Billing' }
   ],
   paths: {
     '/health': {
@@ -1340,6 +1341,63 @@ export const openApiSpec = {
           200: jsonResponse('OK', ref('Profile'))
         }
       }
+    },
+    '/api/v1/plans': {
+      get: {
+        tags: ['Billing'],
+        summary: 'List available subscription plans',
+        responses: {
+          200: jsonResponse('OK', arrayOf(ref('Plan')))
+        }
+      }
+    },
+    '/api/v1/subscription/user-id/{userId}': {
+      get: {
+        tags: ['Billing'],
+        summary: 'Get the subscription for a user (auto-creates a default plan and seeds payment history on first access)',
+        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: jsonResponse('OK', ref('Subscription'))
+        }
+      }
+    },
+    '/api/v1/subscription/{id}/plan': {
+      put: {
+        tags: ['Billing'],
+        summary: 'Change the plan of a subscription',
+        parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: ref('ChangePlanRequest')
+            }
+          }
+        },
+        responses: {
+          200: jsonResponse('OK', ref('Subscription'))
+        }
+      }
+    },
+    '/api/v1/subscription/{id}': {
+      delete: {
+        tags: ['Billing'],
+        summary: 'Cancel a subscription',
+        parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: jsonResponse('OK', ref('Subscription'))
+        }
+      }
+    },
+    '/api/v1/payments/user-id/{userId}': {
+      get: {
+        tags: ['Billing'],
+        summary: 'List the payment history for a user',
+        parameters: [{ in: 'path', name: 'userId', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: jsonResponse('OK', arrayOf(ref('Payment')))
+        }
+      }
     }
   },
   components: {
@@ -1569,6 +1627,46 @@ export const openApiSpec = {
           description: { type: 'string', nullable: true },
           createdAt: { type: 'string', format: 'date-time', nullable: true },
           updatedAt: { type: 'string', format: 'date-time', nullable: true }
+        }
+      },
+      Plan: {
+        type: 'object',
+        properties: {
+          id: { type: ['string', 'integer'] },
+          name: { type: 'string', example: 'PROFESSIONAL' },
+          limits: { type: 'string', example: 'Up to 25 vehicles' },
+          price: { type: 'number', example: 79 },
+          description: { type: 'string', example: 'Advanced monitoring, alerts and reports.' }
+        }
+      },
+      Subscription: {
+        type: 'object',
+        properties: {
+          id: { type: ['string', 'integer'] },
+          userId: { type: ['string', 'integer'] },
+          status: { type: 'string', enum: ['ACTIVE', 'CANCELED', 'PENDING', 'PAST_DUE'], example: 'ACTIVE' },
+          renewal: { type: 'string', example: '2026-07-17' },
+          paymentMethod: { type: 'string', example: '' },
+          plan: ref('Plan')
+        }
+      },
+      Payment: {
+        type: 'object',
+        properties: {
+          id: { type: ['string', 'integer'] },
+          userId: { type: ['string', 'integer'] },
+          receiptUrl: { type: 'string', example: 'https://logic-nodes-server.onrender.com/receipts/1' },
+          transactionId: { type: 'string', example: 'TXN-1-0001' },
+          status: { type: 'string', example: 'PAID' },
+          amount: { type: 'number', example: 79 },
+          paymentDate: { type: 'string', example: '2026-06-17' }
+        }
+      },
+      ChangePlanRequest: {
+        type: 'object',
+        required: ['newPlanId'],
+        properties: {
+          newPlanId: { type: 'integer', example: 3 }
         }
       },
       CreateIncidentRequest: {

@@ -1,143 +1,173 @@
 import { query } from "../../../shared/infrastructure/db/postgres.js";
 import { httpError } from "../../../shared/application/http-error.js";
 
-const SUBSCRIPTION_COLUMNS = `
-  id,
-  user_id AS "userId",
-  plan_name AS "planName",
-  amount_cents AS "amountCents",
-  currency,
-  status,
-  to_char(renewal_date, 'MM/DD/YYYY') AS "renewalDate",
-  payment_method_label AS "paymentMethodLabel",
-  created_at AS "createdAt",
-  updated_at AS "updatedAt"
-`;
-
-const PAYMENT_COLUMNS = `
-  id,
-  user_id AS "userId",
-  amount_cents AS "amountCents",
-  currency,
-  status,
-  transaction_id AS "transactionId",
-  to_char(paid_at, 'MM/DD/YYYY') AS "date",
-  paid_at AS "paidAt"
-`;
-
 const single = async (sql, params = []) => {
   const rows = await query(sql, params);
   return rows[0] || null;
 };
 
-const requireUserId = (userId) => {
-  const parsed = Number(userId);
+const requireId = (value, label) => {
+  const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw httpError("A valid userId is required", 400);
+    throw httpError(`A valid ${label} is required`, 400);
   }
   return parsed;
 };
 
-const seedPayments = async (userId, amountCents) => {
-  // Seed a small payment history so the screen reflects real persisted data.
+const DEFAULT_PLAN_NAME = "PROFESSIONAL";
+
+// ── Plans ────────────────────────────────────────────────────────────────────
+
+export const listPlans = async () => query(
+  `
+    SELECT id, name, limits, price::float8 AS price, description
+    FROM plans
+    ORDER BY price ASC
+  `
+);
+
+const getPlan = async (planId) => single(
+  `SELECT id, name, limits, price::float8 AS price, description FROM plans WHERE id = $1 LIMIT 1`,
+  [planId]
+);
+
+const getDefaultPlan = async () => {
+  const plan = await single(
+    `SELECT id, name, limits, price::float8 AS price, description FROM plans WHERE name = $1 LIMIT 1`,
+    [DEFAULT_PLAN_NAME]
+  );
+  return plan || single(`SELECT id, name, limits, price::float8 AS price, description FROM plans ORDER BY price ASC LIMIT 1`);
+};
+
+// ── Subscriptions ──────────────────────────────────────────────────────────────
+
+const subscriptionRow = async (where, params) => single(
+  `
+    SELECT s.id, s.user_id AS "userId", s.status,
+           to_char(s.renewal, 'YYYY-MM-DD') AS renewal,
+           s.payment_method AS "paymentMethod",
+           s.plan_id AS "planId"
+    FROM subscriptions s
+    WHERE ${where}
+    LIMIT 1
+  `,
+  params
+);
+
+const withPlan = async (subscription) => {
+  if (!subscription) {
+    return null;
+  }
+  const plan = await getPlan(subscription.planId);
+  const { planId, ...rest } = subscription;
+  return { ...rest, plan };
+};
+
+export const getSubscriptionByUser = async (userId) => {
+  const id = requireId(userId, "userId");
+
+  const existing = await subscriptionRow("s.user_id = $1", [id]);
+  if (existing) {
+    return withPlan(existing);
+  }
+
+  const plan = await getDefaultPlan();
+  if (!plan) {
+    throw httpError("No plans are configured", 500);
+  }
+
+  await query(
+    `INSERT INTO subscriptions (user_id, plan_id) VALUES ($1, $2)`,
+    [id, plan.id]
+  );
+  await seedPayments(id, plan.price);
+
+  const subscription = await subscriptionRow("s.user_id = $1", [id]);
+  return withPlan(subscription);
+};
+
+export const changePlan = async (subscriptionId, payload = {}) => {
+  const id = requireId(subscriptionId, "subscriptionId");
+  const newPlanId = requireId(payload.newPlanId, "newPlanId");
+
+  const plan = await getPlan(newPlanId);
+  if (!plan) {
+    throw httpError("Plan not found", 404);
+  }
+
+  const updated = await query(
+    `
+      UPDATE subscriptions
+      SET plan_id = $2, status = 'ACTIVE', updated_at = NOW()
+      WHERE id = $1
+      RETURNING id
+    `,
+    [id, newPlanId]
+  );
+  if (updated.length === 0) {
+    throw httpError("Subscription not found", 404);
+  }
+
+  const subscription = await subscriptionRow("s.id = $1", [id]);
+  return withPlan(subscription);
+};
+
+export const cancelSubscription = async (subscriptionId) => {
+  const id = requireId(subscriptionId, "subscriptionId");
+
+  const updated = await query(
+    `
+      UPDATE subscriptions
+      SET status = 'CANCELED', updated_at = NOW()
+      WHERE id = $1
+      RETURNING id
+    `,
+    [id]
+  );
+  if (updated.length === 0) {
+    throw httpError("Subscription not found", 404);
+  }
+
+  const subscription = await subscriptionRow("s.id = $1", [id]);
+  return withPlan(subscription);
+};
+
+// ── Payments ───────────────────────────────────────────────────────────────────
+
+const seedPayments = async (userId, amount) => {
   await query(
     `
-      INSERT INTO payments (user_id, amount_cents, status, transaction_id, paid_at)
+      INSERT INTO payments (user_id, amount, transaction_id, receipt_url, payment_date)
       VALUES
-        ($1, $2, 'PAID', $3, NOW() - INTERVAL '0 month'),
-        ($1, $2, 'PAID', $4, NOW() - INTERVAL '1 month'),
-        ($1, $2, 'PAID', $5, NOW() - INTERVAL '2 month')
+        ($1, $2, $3, $6, CURRENT_DATE),
+        ($1, $2, $4, $6, CURRENT_DATE - INTERVAL '1 month'),
+        ($1, $2, $5, $6, CURRENT_DATE - INTERVAL '2 month')
     `,
     [
       userId,
-      amountCents,
+      amount,
       `TXN-${userId}-0001`,
       `TXN-${userId}-0002`,
-      `TXN-${userId}-0003`
+      `TXN-${userId}-0003`,
+      `https://logic-nodes-server.onrender.com/receipts/${userId}`
     ]
   );
 };
 
-export const getOrCreateSubscription = async (userId) => {
-  const id = requireUserId(userId);
-
-  const existing = await single(
-    `SELECT ${SUBSCRIPTION_COLUMNS} FROM subscriptions WHERE user_id = $1 LIMIT 1`,
-    [id]
-  );
-  if (existing) {
-    return existing;
-  }
-
-  const created = await single(
-    `
-      INSERT INTO subscriptions (user_id)
-      VALUES ($1)
-      RETURNING ${SUBSCRIPTION_COLUMNS}
-    `,
-    [id]
-  );
-
-  await seedPayments(id, created.amountCents);
-
-  return created;
-};
-
-export const listPayments = async (userId) => {
-  const id = requireUserId(userId);
-  // Ensure a subscription (and its seeded history) exists before listing.
-  await getOrCreateSubscription(id);
+export const listPaymentsByUser = async (userId) => {
+  const id = requireId(userId, "userId");
+  // Ensure a subscription (and its seeded history) exists first.
+  await getSubscriptionByUser(id);
 
   return query(
-    `SELECT ${PAYMENT_COLUMNS} FROM payments WHERE user_id = $1 ORDER BY paid_at DESC`,
-    [id]
-  );
-};
-
-export const linkPaymentMethod = async (userId, payload = {}) => {
-  const id = requireUserId(userId);
-  await getOrCreateSubscription(id);
-
-  const label = resolvePaymentMethodLabel(payload);
-
-  return single(
     `
-      UPDATE subscriptions
-      SET payment_method_label = $2,
-          updated_at = NOW()
+      SELECT id, user_id AS "userId", receipt_url AS "receiptUrl",
+             transaction_id AS "transactionId", status, amount::float8 AS amount,
+             to_char(payment_date, 'YYYY-MM-DD') AS "paymentDate"
+      FROM payments
       WHERE user_id = $1
-      RETURNING ${SUBSCRIPTION_COLUMNS}
-    `,
-    [id, label]
-  );
-};
-
-export const cancelSubscription = async (userId) => {
-  const id = requireUserId(userId);
-  await getOrCreateSubscription(id);
-
-  return single(
-    `
-      UPDATE subscriptions
-      SET status = 'CANCELLED',
-          updated_at = NOW()
-      WHERE user_id = $1
-      RETURNING ${SUBSCRIPTION_COLUMNS}
+      ORDER BY payment_date DESC, id DESC
     `,
     [id]
   );
-};
-
-const resolvePaymentMethodLabel = (payload) => {
-  if (payload.paymentMethodLabel) {
-    return String(payload.paymentMethodLabel).slice(0, 120);
-  }
-
-  const digits = String(payload.cardNumber || "").replace(/\D/g, "");
-  if (digits.length < 4) {
-    throw httpError("A valid card number is required", 400);
-  }
-
-  const lastFour = digits.slice(-4);
-  return `Card ending in ${lastFour}`;
 };
