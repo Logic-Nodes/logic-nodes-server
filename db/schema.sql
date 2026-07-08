@@ -4,7 +4,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 DO $$ BEGIN
-  CREATE TYPE alert_type_enum AS ENUM ('TEMPERATURE', 'HUMIDITY', 'VIBRATION', 'GEOFENCE', 'DELAY', 'OTHER');
+  CREATE TYPE alert_type_enum AS ENUM ('TEMPERATURE', 'HUMIDITY', 'VIBRATION', 'GEOFENCE', 'DELAY', 'DISCONNECTION', 'OTHER');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -120,6 +120,8 @@ CREATE TABLE IF NOT EXISTS devices (
   firmware VARCHAR(50) NOT NULL,
   online BOOLEAN NOT NULL DEFAULT FALSE,
   vehicle_plate VARCHAR(32),
+  device_secret VARCHAR(80),
+  last_seen_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -162,6 +164,8 @@ CREATE TABLE IF NOT EXISTS trips (
   vehicle_id BIGINT REFERENCES vehicles(id),
   origin_point_id BIGINT REFERENCES origin_points(id),
   status trip_status_enum NOT NULL,
+  tracking_code VARCHAR(24) UNIQUE,
+  scheduled_at TIMESTAMP,
   started_at TIMESTAMP,
   completed_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),

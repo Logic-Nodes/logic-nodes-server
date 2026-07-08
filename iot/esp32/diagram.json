@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "author": "OmniTrack",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-dht22", "id": "dht", "top": -120, "left": 180, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot", "top": 40, "left": 260, "attrs": {} },
+    { "type": "wokwi-led", "id": "led", "top": -60, "left": -120, "attrs": { "color": "red" } },
+    { "type": "wokwi-resistor", "id": "r1", "top": 0, "left": -120, "attrs": { "value": "220" } }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+
+    [ "dht:VCC", "esp:3V3", "red", [] ],
+    [ "dht:GND", "esp:GND.1", "black", [] ],
+    [ "dht:SDA", "esp:15", "green", [] ],
+
+    [ "pot:VCC", "esp:3V3", "red", [] ],
+    [ "pot:GND", "esp:GND.2", "black", [] ],
+    [ "pot:SIG", "esp:34", "green", [] ],
+
+    [ "esp:2", "r1:1", "green", [] ],
+    [ "r1:2", "led:A", "green", [] ],
+    [ "led:C", "esp:GND.3", "black", [] ]
+  ],
+  "dependencies": {}
+}

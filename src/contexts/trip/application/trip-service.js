@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 import { query } from "../../../shared/infrastructure/db/postgres.js";
 import { httpError } from "../../../shared/application/http-error.js";
 
@@ -5,6 +7,8 @@ const runSingle = async (sql, params = []) => {
   const rows = await query(sql, params);
   return rows[0] || null;
 };
+
+const generateTrackingCode = () => crypto.randomBytes(6).toString("hex").toUpperCase();
 
 const parseObject = (value) => {
   if (value == null) {
@@ -104,6 +108,8 @@ const toTripResource = async (row) => {
     driverId: row.driverId,
     deviceId: row.deviceId,
     vehicleId: row.vehicleId,
+    trackingCode: row.trackingCode,
+    scheduledAt: row.scheduledAt,
     status: row.status,
     createdAt: row.createdAt,
     startedAt: row.startedAt,
@@ -228,6 +234,8 @@ export const listTrips = async (filters = {}) => {
              t.device_id AS "deviceId",
              t.vehicle_id AS "vehicleId",
              t.origin_point_id AS "originPointId",
+             t.tracking_code AS "trackingCode",
+             t.scheduled_at AS "scheduledAt",
              t.status,
              t.started_at AS "startedAt",
              t.completed_at AS "completedAt",
@@ -251,6 +259,8 @@ export const getTrip = async (id) => runSingle(
            t.device_id AS "deviceId",
            t.vehicle_id AS "vehicleId",
            t.origin_point_id AS "originPointId",
+           t.tracking_code AS "trackingCode",
+           t.scheduled_at AS "scheduledAt",
            t.status,
            t.started_at AS "startedAt",
            t.completed_at AS "completedAt",
@@ -266,23 +276,107 @@ export const getTrip = async (id) => runSingle(
 export const deleteTrip = async (id) => query(`DELETE FROM trips WHERE id = $1 RETURNING id`, [id]);
 
 export const createTrip = async (payload = {}) => {
-  const { merchantId, driverId, deviceId = null, vehicleId = null, originPointId = null, status = "PLANNED" } = payload;
+  const { merchantId, driverId, deviceId = null, vehicleId = null, originPointId = null, scheduledAt = null, status = "PLANNED" } = payload;
 
   if (!merchantId || !driverId) {
     throw httpError("merchantId and driverId are required", 400);
   }
 
+  const trackingCode = payload.trackingCode || generateTrackingCode();
+
   return runSingle(
     `
-      INSERT INTO trips (merchant_id, driver_id, device_id, vehicle_id, origin_point_id, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO trips (merchant_id, driver_id, device_id, vehicle_id, origin_point_id, scheduled_at, tracking_code, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, merchant_id AS "merchantId", driver_id AS "driverId", device_id AS "deviceId",
-                vehicle_id AS "vehicleId", origin_point_id AS "originPointId", status,
+                vehicle_id AS "vehicleId", origin_point_id AS "originPointId", tracking_code AS "trackingCode",
+                scheduled_at AS "scheduledAt", status,
                 started_at AS "startedAt", completed_at AS "completedAt",
                 created_at AS "createdAt", updated_at AS "updatedAt"
     `,
-    [merchantId, driverId, deviceId, vehicleId, originPointId, status]
+    [merchantId, driverId, deviceId, vehicleId, originPointId, scheduledAt, trackingCode, status]
   );
+};
+
+// Reschedule / reassign an existing trip (US026 / B-09). Only the provided
+// fields change; everything else keeps its current value.
+export const updateTrip = async (id, payload = {}) => {
+  const current = await getTrip(id);
+  if (!current) {
+    throw httpError("Trip not found", 404);
+  }
+
+  const next = {
+    deviceId: payload.deviceId ?? current.deviceId,
+    vehicleId: payload.vehicleId ?? current.vehicleId,
+    driverId: payload.driverId ?? current.driverId,
+    originPointId: payload.originPointId ?? current.originPoint?.id ?? null,
+    scheduledAt: payload.scheduledAt ?? current.scheduledAt,
+    status: payload.status ?? current.status
+  };
+
+  return runSingle(
+    `
+      UPDATE trips
+      SET device_id = $2,
+          vehicle_id = $3,
+          driver_id = $4,
+          origin_point_id = $5,
+          scheduled_at = $6,
+          status = $7,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, merchant_id AS "merchantId", driver_id AS "driverId", device_id AS "deviceId",
+                vehicle_id AS "vehicleId", origin_point_id AS "originPointId", tracking_code AS "trackingCode",
+                scheduled_at AS "scheduledAt", status,
+                started_at AS "startedAt", completed_at AS "completedAt",
+                created_at AS "createdAt", updated_at AS "updatedAt"
+    `,
+    [id, next.deviceId, next.vehicleId, next.driverId, next.originPointId, next.scheduledAt, next.status]
+  ).then(async (row) => (row ? toTripResource(row) : null));
+};
+
+// Public tracking (US027 / B-10): resolve a trip by its short code and expose a
+// safe, read-only view for end customers (no merchant/driver identifiers).
+export const getTripByTrackingCode = async (code) => {
+  if (!code) {
+    throw httpError("Tracking code is required", 400);
+  }
+
+  const row = await runSingle(
+    `
+      SELECT t.id, t.origin_point_id AS "originPointId", t.tracking_code AS "trackingCode",
+             t.scheduled_at AS "scheduledAt", t.status,
+             t.started_at AS "startedAt", t.completed_at AS "completedAt", t.created_at AS "createdAt"
+      FROM trips t
+      WHERE t.tracking_code = $1
+      LIMIT 1
+    `,
+    [String(code).toUpperCase()]
+  );
+
+  if (!row) {
+    throw httpError("Trip not found", 404);
+  }
+
+  const originPoint = row.originPointId ? await getOriginPoint(row.originPointId) : null;
+  const deliveryOrders = await listDeliveryOrdersByTrip(row.id);
+
+  return {
+    trackingCode: row.trackingCode,
+    status: row.status,
+    scheduledAt: row.scheduledAt,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+    createdAt: row.createdAt,
+    origin: originPoint ? { name: originPoint.name, address: originPoint.address } : null,
+    stops: deliveryOrders.map((order) => ({
+      sequenceOrder: order.sequenceOrder,
+      address: order.address,
+      status: order.status,
+      arrivalAt: order.arrivalAt
+    }))
+  };
 };
 
 export const updateTripStatus = async (id, status) => {

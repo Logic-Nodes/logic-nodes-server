@@ -41,6 +41,19 @@ export const listActiveSessions = async () => query(
   `
 );
 
+// Latest ACTIVE session for a device (device_id is stored as the device IMEI
+// for IoT-ingested telemetry).
+export const getActiveSessionByDevice = async (deviceId) => single(
+  `
+    SELECT id, device_id AS "deviceId", trip_id AS "tripId", start_time AS "startTime", end_time AS "endTime", created_at AS "createdAt", status
+    FROM monitoring_sessions
+    WHERE device_id = $1 AND status = 'ACTIVE'
+    ORDER BY id DESC
+    LIMIT 1
+  `,
+  [String(deviceId)]
+);
+
 export const listSessionsByTrip = async (tripId) => query(
   `
     SELECT id, device_id AS "deviceId", trip_id AS "tripId", start_time AS "startTime", end_time AS "endTime", created_at AS "createdAt", status

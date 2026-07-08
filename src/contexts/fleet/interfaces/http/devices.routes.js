@@ -8,6 +8,7 @@ import {
   getDeviceByImei,
   listDevices,
   listDevicesByOnline,
+  rotateDeviceSecret,
   setDeviceOnlineStatus,
   updateDevice,
   updateDeviceFirmware
@@ -29,6 +30,7 @@ router.get("/by-imei/:imei", handle(async (req) => ({ item: await getDeviceByIme
 router.get("/by-online/:online", handle(async (req) => ({ items: await listDevicesByOnline(req.params.online) })));
 router.get("/:id", handle(async (req) => ({ item: await getDevice(req.params.id) })));
 router.post("/", handle(async (req) => ({ item: await createDevice(req.body || {}) }), 201));
+router.post("/by-imei/:imei/rotate-secret", handle(async (req) => ({ item: await rotateDeviceSecret(req.params.imei) })));
 router.put("/:id", handle(async (req) => ({ item: await updateDevice(req.params.id, req.body || {}) })));
 router.delete("/:id", handle(async (req) => ({ item: await deleteDevice(req.params.id) })));
 router.post("/:id/firmware", handle(async (req) => ({ item: await updateDeviceFirmware(req.params.id, req.body?.firmware) })));

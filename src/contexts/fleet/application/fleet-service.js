@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 import { query } from "../../../shared/infrastructure/db/postgres.js";
 import { httpError } from "../../../shared/application/http-error.js";
 
@@ -5,6 +7,8 @@ const single = async (sql, params = []) => {
   const rows = await query(sql, params);
   return rows[0] || null;
 };
+
+export const generateDeviceSecret = () => crypto.randomBytes(24).toString("hex");
 
 export const listDevices = async () => query(
   `
@@ -50,15 +54,102 @@ export const createDevice = async (payload = {}) => {
     throw httpError("imei and firmware are required", 400);
   }
 
-  return single(
+  // Each device gets a secret so it can authenticate the HTTP telemetry ingest.
+  // It is returned only here (creation), never on normal reads.
+  const deviceSecret = payload.deviceSecret || generateDeviceSecret();
+
+  const device = await single(
     `
-      INSERT INTO devices (imei, firmware, online, vehicle_plate)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO devices (imei, firmware, online, vehicle_plate, device_secret)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING id, imei, firmware, online, vehicle_plate AS "vehiclePlate", created_at AS "createdAt", updated_at AS "updatedAt"
     `,
-    [imei, firmware, Boolean(online), vehiclePlate]
+    [imei, firmware, Boolean(online), vehiclePlate, deviceSecret]
   );
+
+  return { ...device, deviceSecret };
 };
+
+export const rotateDeviceSecret = async (imei) => {
+  const deviceSecret = generateDeviceSecret();
+  const device = await single(
+    `
+      UPDATE devices
+      SET device_secret = $2,
+          updated_at = NOW()
+      WHERE imei = $1
+      RETURNING id, imei, firmware, online, vehicle_plate AS "vehiclePlate", created_at AS "createdAt", updated_at AS "updatedAt"
+    `,
+    [imei, deviceSecret]
+  );
+
+  if (!device) {
+    throw httpError("Device not found", 404);
+  }
+
+  return { ...device, deviceSecret };
+};
+
+// Validates the credentials an IoT device presents on each ingest call.
+export const verifyDeviceCredentials = async (imei, secret) => {
+  if (!imei || !secret) {
+    throw httpError("imei and device secret are required", 401);
+  }
+
+  const row = await single(
+    `SELECT id, imei, firmware, online, vehicle_plate AS "vehiclePlate", device_secret AS "deviceSecret" FROM devices WHERE imei = $1 LIMIT 1`,
+    [imei]
+  );
+
+  if (!row || !row.deviceSecret) {
+    throw httpError("Unknown device or missing secret", 401);
+  }
+
+  const provided = Buffer.from(String(secret));
+  const expected = Buffer.from(String(row.deviceSecret));
+  if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
+    throw httpError("Invalid device credentials", 401);
+  }
+
+  const { deviceSecret, ...device } = row;
+  return device;
+};
+
+// Marks a device online and refreshes its liveness timestamp on each ingest.
+export const touchDeviceOnline = async (imei) => single(
+  `
+    UPDATE devices
+    SET online = TRUE,
+        last_seen_at = NOW(),
+        updated_at = NOW()
+    WHERE imei = $1
+    RETURNING id, imei, firmware, online, vehicle_plate AS "vehiclePlate", last_seen_at AS "lastSeenAt", created_at AS "createdAt", updated_at AS "updatedAt"
+  `,
+  [imei]
+);
+
+// Devices that were online but stopped reporting within the given window.
+export const findStaleOnlineDevices = async (offlineAfterSeconds) => query(
+  `
+    SELECT id, imei, firmware, online, vehicle_plate AS "vehiclePlate", last_seen_at AS "lastSeenAt"
+    FROM devices
+    WHERE online = TRUE
+      AND (last_seen_at IS NULL OR last_seen_at < NOW() - ($1 || ' seconds')::interval)
+    ORDER BY id ASC
+  `,
+  [String(Math.max(1, Number(offlineAfterSeconds) || 90))]
+);
+
+export const markDeviceOffline = async (id) => single(
+  `
+    UPDATE devices
+    SET online = FALSE,
+        updated_at = NOW()
+    WHERE id = $1
+    RETURNING id, imei, firmware, online, vehicle_plate AS "vehiclePlate", last_seen_at AS "lastSeenAt", created_at AS "createdAt", updated_at AS "updatedAt"
+  `,
+  [id]
+);
 
 export const updateDevice = async (id, payload = {}) => {
   const current = await getDevice(id);

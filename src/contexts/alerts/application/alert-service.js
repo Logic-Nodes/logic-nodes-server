@@ -45,6 +45,45 @@ export const createAlert = async (payload = {}) => {
 export const acknowledgeAlert = async (id) => updateAlertStatus(id, "ACKNOWLEDGED");
 export const closeAlert = async (id) => updateAlertStatus(id, "CLOSED");
 
+// Finds an already-open alert of a given type so the IoT engine does not spam
+// duplicates while a condition (e.g. over-temperature) persists.
+export const findOpenAlert = async (deliveryOrderId, alertType) => {
+  if (deliveryOrderId == null) {
+    return single(
+      `
+        SELECT id, delivery_order_id AS "deliveryOrderId", alert_type AS "alertType", alert_status AS "alertStatus",
+               created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM alerts
+        WHERE alert_type = $1 AND alert_status = 'OPEN' AND delivery_order_id IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+      `,
+      [alertType]
+    );
+  }
+
+  return single(
+    `
+      SELECT id, delivery_order_id AS "deliveryOrderId", alert_type AS "alertType", alert_status AS "alertStatus",
+             created_at AS "createdAt", updated_at AS "updatedAt"
+      FROM alerts
+      WHERE alert_type = $1 AND alert_status = 'OPEN' AND delivery_order_id = $2
+      ORDER BY id DESC
+      LIMIT 1
+    `,
+    [alertType, deliveryOrderId]
+  );
+};
+
+// Creates an alert and, when a description is provided, an incident trail entry.
+export const raiseAlert = async ({ deliveryOrderId = null, alertType, description = null }) => {
+  const alert = await createAlert({ deliveryOrderId, alertType, alertStatus: "OPEN" });
+  if (description) {
+    await createIncident({ alertId: alert.id, description });
+  }
+  return alert;
+};
+
 export const listAlertsByType = async (type) => query(
   `
     SELECT id, delivery_order_id AS "deliveryOrderId", alert_type AS "alertType", alert_status AS "alertStatus",

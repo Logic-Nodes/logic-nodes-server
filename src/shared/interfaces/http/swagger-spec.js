@@ -45,6 +45,7 @@ export const openApiSpec = {
     { name: 'Fleet Vehicles' },
     { name: 'Monitoring' },
     { name: 'Telemetry' },
+    { name: 'IoT' },
     { name: 'Merchants' },
     { name: 'Employees' },
     { name: 'Profiles' }
@@ -287,6 +288,36 @@ export const openApiSpec = {
           404: noContentResponse('Not Found')
         }
       },
+      patch: {
+        tags: ['Trips'],
+        summary: 'Reschedule / reassign trip (US026)',
+        description: 'Update schedule, origin point, driver, vehicle or device of an existing trip.',
+        parameters: [
+          { in: 'path', name: 'tripId', required: true, schema: { type: 'string' } }
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  scheduledAt: { type: 'string', format: 'date-time', nullable: true },
+                  originPointId: { type: 'integer', nullable: true },
+                  driverId: { type: 'integer', nullable: true },
+                  vehicleId: { type: 'integer', nullable: true },
+                  deviceId: { type: 'integer', nullable: true },
+                  status: { type: 'string' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: jsonResponse('OK', ref('Trip')),
+          404: jsonResponse('Not Found', ref('ErrorResponse'))
+        }
+      },
       delete: {
         tags: ['Trips'],
         summary: 'Delete trip',
@@ -295,6 +326,89 @@ export const openApiSpec = {
         ],
         responses: {
           200: jsonResponse('OK', ref('Trip'))
+        }
+      }
+    },
+    '/api/v1/trips/public/{code}': {
+      get: {
+        tags: ['Trips'],
+        summary: 'Public trip tracking by code (US027)',
+        description: 'Read-only tracking view for end customers. No authentication required.',
+        parameters: [
+          { in: 'path', name: 'code', required: true, schema: { type: 'string' } }
+        ],
+        responses: {
+          200: jsonResponse('OK', ref('PublicTrip')),
+          404: jsonResponse('Not Found', ref('ErrorResponse'))
+        }
+      }
+    },
+    '/api/v1/iot/telemetry': {
+      post: {
+        tags: ['IoT'],
+        summary: 'Ingest telemetry from an IoT device (ESP32)',
+        description: 'Device authenticates with its IMEI + secret (header `x-device-secret`). Persists a telemetry sample, keeps the device online and evaluates thresholds to auto-raise alerts.',
+        parameters: [
+          { in: 'header', name: 'x-device-secret', required: false, schema: { type: 'string' } },
+          { in: 'header', name: 'x-device-imei', required: false, schema: { type: 'string' } }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: ref('IngestTelemetryRequest')
+            }
+          }
+        },
+        responses: {
+          201: jsonResponse('Created', ref('IngestTelemetryResponse')),
+          401: jsonResponse('Unauthorized', ref('ErrorResponse')),
+          409: jsonResponse('No active session', ref('ErrorResponse'))
+        }
+      }
+    },
+    '/api/v1/iot/heartbeat': {
+      post: {
+        tags: ['IoT'],
+        summary: 'Device liveness ping (no telemetry)',
+        parameters: [
+          { in: 'header', name: 'x-device-secret', required: false, schema: { type: 'string' } },
+          { in: 'header', name: 'x-device-imei', required: false, schema: { type: 'string' } }
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: { imei: { type: 'string' }, deviceSecret: { type: 'string' } }
+              }
+            }
+          }
+        },
+        responses: {
+          200: jsonResponse('OK', {
+            type: 'object',
+            properties: {
+              deviceOnline: { type: 'boolean' },
+              imei: { type: 'string' },
+              lastSeenAt: { type: 'string', format: 'date-time', nullable: true }
+            }
+          }),
+          401: jsonResponse('Unauthorized', ref('ErrorResponse'))
+        }
+      }
+    },
+    '/api/v1/fleet/devices/by-imei/{imei}/rotate-secret': {
+      post: {
+        tags: ['Fleet Devices'],
+        summary: 'Rotate a device secret (returns the new secret once)',
+        parameters: [
+          { in: 'path', name: 'imei', required: true, schema: { type: 'string' } }
+        ],
+        responses: {
+          200: jsonResponse('OK', ref('DeviceWithSecret')),
+          404: jsonResponse('Not Found', ref('ErrorResponse'))
         }
       }
     },
@@ -1313,9 +1427,81 @@ export const openApiSpec = {
         properties: {
           id: { type: ['string', 'integer'] },
           merchantId: { type: ['string', 'integer'], nullable: true },
+          driverId: { type: ['string', 'integer'], nullable: true },
+          deviceId: { type: ['string', 'integer'], nullable: true },
+          vehicleId: { type: ['string', 'integer'], nullable: true },
+          trackingCode: { type: 'string', nullable: true },
+          scheduledAt: { type: 'string', format: 'date-time', nullable: true },
           status: { type: 'string' },
+          startedAt: { type: 'string', format: 'date-time', nullable: true },
+          completedAt: { type: 'string', format: 'date-time', nullable: true },
           originPoint: ref('OriginPoint'),
           deliveryOrders: arrayOf(ref('DeliveryOrder'))
+        }
+      },
+      PublicTrip: {
+        type: 'object',
+        properties: {
+          trackingCode: { type: 'string' },
+          status: { type: 'string' },
+          scheduledAt: { type: 'string', format: 'date-time', nullable: true },
+          startedAt: { type: 'string', format: 'date-time', nullable: true },
+          completedAt: { type: 'string', format: 'date-time', nullable: true },
+          createdAt: { type: 'string', format: 'date-time', nullable: true },
+          origin: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              name: { type: 'string', nullable: true },
+              address: { type: 'string', nullable: true }
+            }
+          },
+          stops: arrayOf({
+            type: 'object',
+            properties: {
+              sequenceOrder: { type: 'integer', nullable: true },
+              address: { type: 'string', nullable: true },
+              status: { type: 'string', nullable: true },
+              arrivalAt: { type: 'string', format: 'date-time', nullable: true }
+            }
+          })
+        }
+      },
+      IngestTelemetryRequest: {
+        type: 'object',
+        required: ['imei'],
+        properties: {
+          imei: { type: 'string', description: 'Device identifier registered in the devices table' },
+          deviceSecret: { type: 'string', description: 'Device secret (may also be sent via x-device-secret header)' },
+          tripId: { type: ['string', 'integer'], nullable: true, description: 'Opens a monitoring session if the device has none active' },
+          temperature: { type: 'number', nullable: true },
+          humidity: { type: 'number', nullable: true },
+          vibration: { type: 'number', nullable: true },
+          latitude: { type: 'number', nullable: true },
+          longitude: { type: 'number', nullable: true },
+          recordedAt: { type: 'string', format: 'date-time', nullable: true }
+        }
+      },
+      IngestTelemetryResponse: {
+        type: 'object',
+        properties: {
+          deviceOnline: { type: 'boolean' },
+          deviceId: { type: ['string', 'integer'] },
+          sessionId: { type: ['string', 'integer'] },
+          tripId: { type: ['string', 'integer'], nullable: true },
+          telemetry: ref('TelemetryData'),
+          alerts: arrayOf(ref('Alert'))
+        }
+      },
+      DeviceWithSecret: {
+        type: 'object',
+        properties: {
+          id: { type: ['string', 'integer'] },
+          imei: { type: 'string' },
+          firmware: { type: 'string' },
+          online: { type: 'boolean' },
+          vehiclePlate: { type: 'string', nullable: true },
+          deviceSecret: { type: 'string', description: 'Returned only on creation/rotation' }
         }
       },
       CreateTripRequest: {
