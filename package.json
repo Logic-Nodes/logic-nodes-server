@@ -7,6 +7,10 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "migrate": "node scripts/migrate-db.mjs",
+    "migrate:billing": "node scripts/migrate-billing-only.mjs",
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "test:e2e-local": "node scripts/e2e-local-smoke.mjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testEnvironment=node --detectOpenHandles",
     "lint": "echo \"No linter configured\""
   },
@@ -18,9 +22,11 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "firebase-admin": "^13.10.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "mqtt": "^5.10.1",
     "pg": "^8.13.1",
     "swagger-ui-express": "^5.0.1"
   },
