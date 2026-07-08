@@ -1,7 +1,7 @@
 /*
  * OmniTrack - ESP32 telemetry node
  * -------------------------------------------------------------------------
- * Sends temperature/humidity (DHT22) + a vibration proxy (potentiometer) to
+ * Sends temperature/humidity (DHT11) + a vibration proxy (potentiometer) to
  * the OmniTrack backend over HTTPS and lights an LED when the backend replies
  * that the reading raised an alert.
  *
@@ -13,10 +13,10 @@
  *   - "Adafruit Unified Sensor"
  *   - "ArduinoJson" by Benoit Blanchon
  *
- * Wiring (see diagram.json for the Wokwi layout):
- *   DHT22 DATA  -> GPIO 15
- *   Potentiometer wiper (SIG) -> GPIO 34 (ADC1)
- *   LED anode   -> GPIO 2 (built-in LED works too)
+ * Wiring (3-pin DHT11 module has its pull-up built in):
+ *   DHT11: S/DATA -> GPIO 15 | VCC/+ -> 3V3 | GND/- -> GND
+ *   Potentiometer wiper (SIG) -> GPIO 34 (ADC1); ends -> 3V3 and GND
+ *   LED anode -> GPIO 2 (via 1k resistor); cathode -> GND
  */
 
 #include <WiFi.h>
@@ -36,7 +36,7 @@ const char *API_BASE = "https://logic-nodes-server.onrender.com";
 // Credentials for THIS device. Register the device first and copy the secret
 // returned once (see iot/esp32/README.md).
 const char *DEVICE_IMEI = "ESP32-DEMO-0001";
-const char *DEVICE_SECRET = "PASTE_DEVICE_SECRET_HERE";
+const char *DEVICE_SECRET = "3f83ec46c47958e9927dfd696e80073797a32eac6f84e5f4";
 
 // Optional: open/attach a monitoring session for this trip when the device has
 // none active. Set to "" (empty) to require an existing session instead.
@@ -46,7 +46,7 @@ const unsigned long SEND_INTERVAL_MS = 10000; // 10s between samples
 // -------------------------------------------------------------------------
 
 #define DHT_PIN 15
-#define DHT_TYPE DHT22
+#define DHT_TYPE DHT11
 #define POT_PIN 34
 #define LED_PIN 2
 
