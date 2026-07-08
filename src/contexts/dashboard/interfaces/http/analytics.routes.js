@@ -1,7 +1,14 @@
 import { Router } from "express";
 
 import { sendHttpResponse } from "../../../../shared/interfaces/http/normalize-response.js";
-import { alertsSummary, incidentsByMonth, tripDetail, tripsSummary } from "../../application/analytics-service.js";
+import {
+  alertsDashboard,
+  alertsSummary,
+  incidentsByMonth,
+  tripDetail,
+  tripsDashboard,
+  tripsSummary
+} from "../../application/analytics-service.js";
 
 const router = Router();
 
@@ -14,9 +21,11 @@ const handle = (action, statusCode = 200) => async (req, res, next) => {
 	}
 };
 
-router.get("/trips", handle(async () => await tripsSummary()));
-router.get("/trips/:id", handle(async (req) => await tripDetail(req.params.id)));
-router.get("/alerts", handle(async () => await alertsSummary()));
-router.get("/incidents-by-month", handle(async () => await incidentsByMonth()));
+router.get("/trips/summary", handle(async () => await tripsSummary()));
+router.get("/trips", handle(async () => ({ items: await tripsDashboard() })));
+router.get("/trips/:id", handle(async (req) => ({ item: await tripDetail(req.params.id) })));
+router.get("/alerts/summary", handle(async () => await alertsSummary()));
+router.get("/alerts", handle(async (req) => ({ items: await alertsDashboard(req.query.tripId) })));
+router.get("/incidents-by-month", handle(async () => ({ items: await incidentsByMonth() })));
 
 export default router;

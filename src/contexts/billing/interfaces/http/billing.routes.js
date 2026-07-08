@@ -6,7 +6,8 @@ import {
   changePlan,
   getSubscriptionByUser,
   listPaymentsByUser,
-  listPlans
+  listPlans,
+  updatePaymentMethod
 } from "../../application/billing-service.js";
 
 const router = Router();
@@ -31,5 +32,6 @@ router.get("/subscription/user-id/:userId", handle(async (req) => ({ item: await
 router.put("/subscription/:id/plan", handle(async (req) => ({ item: await changePlan(req.params.id, req.body || {}) })));
 router.delete("/subscription/:id", handle(async (req) => ({ item: await cancelSubscription(req.params.id) })));
 router.get("/payments/user-id/:userId", handle(async (req) => ({ items: await listPaymentsByUser(req.params.userId) })));
+router.post("/subscription/:id/payment-method", handle(async (req) => ({ item: await updatePaymentMethod(req.params.id, req.body || {}) })));
 
 export default router;

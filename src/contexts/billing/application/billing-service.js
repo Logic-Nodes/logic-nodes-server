@@ -171,3 +171,33 @@ export const listPaymentsByUser = async (userId) => {
     [id]
   );
 };
+
+export const updatePaymentMethod = async (subscriptionId, payload = {}) => {
+  const id = requireId(subscriptionId, "subscriptionId");
+  const paymentMethodId = `${payload.paymentMethodId || payload.paymentMethod || ""}`.trim();
+  if (!paymentMethodId) {
+    throw httpError("paymentMethodId is required", 400);
+  }
+
+  if (process.env.STRIPE_SECRET_KEY) {
+    // Stripe validation hook — store PM id after SetupIntent in a future iteration.
+    console.log(`[stripe] payment method ${paymentMethodId} accepted for subscription ${id}`);
+  }
+
+  const updated = await query(
+    `
+      UPDATE subscriptions
+      SET payment_method = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id
+    `,
+    [id, paymentMethodId]
+  );
+  if (updated.length === 0) {
+    throw httpError("Subscription not found", 404);
+  }
+
+  const subscription = await subscriptionRow("s.id = $1", [id]);
+  return withPlan(subscription);
+};

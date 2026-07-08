@@ -1,5 +1,6 @@
 import { query } from "../../../shared/infrastructure/db/postgres.js";
 import { httpError } from "../../../shared/application/http-error.js";
+import { sendPushNotification } from "../../../shared/infrastructure/push/push-sender.js";
 
 const single = async (sql, params = []) => {
   const rows = await query(sql, params);
@@ -165,17 +166,33 @@ export const createNotification = async (payload = {}) => {
   );
 };
 
-export const sendNotificationNow = async (id) => single(
-  `
-    UPDATE notifications
-    SET sent_at = COALESCE(sent_at, NOW()),
-        updated_at = NOW()
-    WHERE id = $1
-    RETURNING id, alert_id AS "alertId", notification_channel AS "notificationChannel", message, sent_at AS "sentAt",
-              created_at AS "createdAt", updated_at AS "updatedAt"
-  `,
-  [id]
-);
+export const sendNotificationNow = async (id, userId = null) => {
+  const notification = await single(
+    `
+      UPDATE notifications
+      SET sent_at = COALESCE(sent_at, NOW()),
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, alert_id AS "alertId", notification_channel AS "notificationChannel", message, sent_at AS "sentAt",
+                created_at AS "createdAt", updated_at AS "updatedAt"
+    `,
+    [id]
+  );
+
+  if (!notification) {
+    throw httpError("Notification not found", 404);
+  }
+
+  if (notification.notificationChannel === "PUSH") {
+    await sendPushNotification({
+      userId,
+      title: "OmniTrack",
+      body: notification.message || "You have a new notification"
+    });
+  }
+
+  return notification;
+};
 
 const updateAlertStatus = async (id, status) => {
   const alert = await getAlert(id);

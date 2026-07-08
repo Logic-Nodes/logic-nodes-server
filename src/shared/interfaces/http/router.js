@@ -19,6 +19,7 @@ import profilesRoutes from "../../../contexts/profiles/interfaces/http/profiles.
 import deliveryOrdersRoutes from "../../../contexts/trip/interfaces/http/delivery-orders.routes.js";
 import originPointsRoutes from "../../../contexts/trip/interfaces/http/origin-points.routes.js";
 import tripsRoutes from "../../../contexts/trip/interfaces/http/trips.routes.js";
+import deviceTokensRoutes from "../../../contexts/notifications/interfaces/http/device-tokens.routes.js";
 
 const api = Router();
 
@@ -45,5 +46,6 @@ api.use("/api/v1/profiles", profilesRoutes);
 api.use("/api/v1/delivery-orders", deliveryOrdersRoutes);
 api.use("/api/v1/origin-points", originPointsRoutes);
 api.use("/api/v1/trips", tripsRoutes);
+api.use("/api/v1/device-tokens", deviceTokensRoutes);
 
 export default api;
