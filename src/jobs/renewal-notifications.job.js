@@ -1,5 +1,5 @@
-import { query } from "../../../shared/infrastructure/db/postgres.js";
-import { createNotification, sendNotificationNow } from "../../../contexts/alerts/application/alert-service.js";
+import { query } from "../shared/infrastructure/db/postgres.js";
+import { createNotification, sendNotificationNow } from "../contexts/alerts/application/alert-service.js";
 
 const NOTICE_DAYS = Number(process.env.SUBSCRIPTION_NOTICE_DAYS || 7);
 

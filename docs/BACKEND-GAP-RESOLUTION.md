@@ -32,7 +32,7 @@ Variables nuevas en `.env.example`: jobs, MQTT, Stripe, FCM.
 | B-11 | Job desconexión IoT | ✅ Job cada 5 min (configurable) |
 | B-12 | MQTT | ✅ Subscriber si `MQTT_BROKER_URL` está definido |
 | B-13 | Stripe payment-method | 🟡 `POST /subscription/:id/payment-method` (guarda PM; Stripe real con `STRIPE_SECRET_KEY`) |
-| B-14 | FCM push | 🟡 `POST /device-tokens` + push simulado / hook Firebase |
+| B-14 | FCM push | ✅ `firebase-admin` real + `POST /device-tokens` + mobile `firebase_messaging` |
 | B-15 | Cron renovación | ✅ Job cada 12h (configurable) |
 | B-28 | Seed demo | ✅ `npm run seed:demo` |
 
@@ -46,7 +46,16 @@ Variables nuevas en `.env.example`: jobs, MQTT, Stripe, FCM.
    - `GET /api/v1/plans` → 200
    - `GET /api/v1/subscription/user-id/4` → 200
    - `GET /api/v1/trips/public/DEMO7K9M2` → 200
-4. Opcional: configurar `MQTT_BROKER_URL`, `STRIPE_SECRET_KEY`, `FIREBASE_SERVICE_ACCOUNT_JSON`
+4. Opcional: configurar `MQTT_BROKER_URL`, `STRIPE_SECRET_KEY`
+5. **FCM (obligatorio para push real):**
+   ```bash
+   # Local — ruta al JSON descargado de Firebase Console
+   FIREBASE_SERVICE_ACCOUNT_PATH=/ruta/a/engelvo-elkers-firebase-adminsdk-....json
+
+   # Render — JSON minificado en una línea:
+   cat engelvo-elkers-firebase-adminsdk-*.json | jq -c .
+   # → pegar en FIREBASE_SERVICE_ACCOUNT_JSON
+   ```
 
 ---
 

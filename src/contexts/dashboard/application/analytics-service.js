@@ -52,7 +52,7 @@ export const tripsDashboard = async () => {
              t.completed_at AS "completedAt",
              t.created_at AS "createdAt",
              op.name AS "originName",
-             (do.location->>'address') AS "destinationAddress",
+             (del_ord.location->>'address') AS "destinationAddress",
              v.plate AS "vehiclePlate",
              COALESCE(p.first_name || ' ' || p.last_name, u.email) AS "driverName",
              COALESCE(v.type::text, 'General') AS "cargoType",
@@ -63,9 +63,9 @@ export const tripsDashboard = async () => {
       LEFT JOIN vehicles v ON v.id = t.vehicle_id
       LEFT JOIN users u ON u.id = t.driver_id
       LEFT JOIN profiles p ON p.user_id = t.driver_id
-      LEFT JOIN delivery_orders do ON do.trip_id = t.id AND do.sequence_order = 1
-      LEFT JOIN alerts a ON a.delivery_order_id = do.id
-      GROUP BY t.id, op.name, do.location, v.plate, p.first_name, p.last_name, u.email, v.type, v.odometer_km
+      LEFT JOIN delivery_orders del_ord ON del_ord.trip_id = t.id AND del_ord.sequence_order = 1
+      LEFT JOIN alerts a ON a.delivery_order_id = del_ord.id
+      GROUP BY t.id, op.name, del_ord.location, v.plate, p.first_name, p.last_name, u.email, v.type, v.odometer_km
       ORDER BY t.id DESC
       LIMIT 100
     `
@@ -120,12 +120,12 @@ export const alertsDashboard = async (tripId = null) => {
              td.temperature AS value,
              td.latitude,
              td.longitude,
-             COALESCE(do.location->>'address', '') AS address
+             COALESCE(del_ord.location->>'address', '') AS address
       FROM alerts a
-      LEFT JOIN delivery_orders do ON do.id = a.delivery_order_id
-      LEFT JOIN trips t ON t.id = do.trip_id
+      LEFT JOIN delivery_orders del_ord ON del_ord.id = a.delivery_order_id
+      LEFT JOIN trips t ON t.id = del_ord.trip_id
       LEFT JOIN vehicles v ON v.id = t.vehicle_id
-      LEFT JOIN monitoring_sessions ms ON ms.trip_id = t.id
+      LEFT JOIN monitoring_sessions ms ON ms.trip_id = t.id::text
       LEFT JOIN LATERAL (
         SELECT temperature, latitude, longitude
         FROM telemetry_data

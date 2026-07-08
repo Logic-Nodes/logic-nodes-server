@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { sendHttpResponse } from "../../../shared/interfaces/http/normalize-response.js";
+import { sendHttpResponse } from "../../../../shared/interfaces/http/normalize-response.js";
 import { registerDeviceToken } from "../../application/device-token-service.js";
 
 const router = Router();

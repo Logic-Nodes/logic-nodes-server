@@ -1,5 +1,5 @@
-import { query } from "../../../shared/infrastructure/db/postgres.js";
-import { createAlert } from "../../../contexts/alerts/application/alert-service.js";
+import { query } from "../shared/infrastructure/db/postgres.js";
+import { createAlert } from "../contexts/alerts/application/alert-service.js";
 
 const DISCONNECT_MINUTES = Number(process.env.IOT_DISCONNECT_MINUTES || 15);
 
