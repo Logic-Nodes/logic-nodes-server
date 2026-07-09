@@ -34,6 +34,24 @@ CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
 ALTER TABLE subscriptions
   ADD COLUMN IF NOT EXISTS renewal DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '1 month');
 
+ALTER TABLE subscriptions
+  ADD COLUMN IF NOT EXISTS payment_method VARCHAR(120) NOT NULL DEFAULT '';
+
+-- BD heredada (billing jun-2026): payment_method_label → payment_method
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'subscriptions' AND column_name = 'payment_method_label'
+  ) THEN
+    EXECUTE $q$
+      UPDATE subscriptions
+      SET payment_method = COALESCE(NULLIF(payment_method, ''), payment_method_label, '')
+      WHERE payment_method_label IS NOT NULL
+    $q$;
+  END IF;
+END $$;
+
 INSERT INTO plans (name, limits, price, description)
 SELECT * FROM (VALUES
   ('BASIC', 'Up to 5 vehicles', 29.00, 'Essential tracking for small fleets.'),
